@@ -1,0 +1,7 @@
+langchain
+langchain-openai
+langsmith
+fastapi
+uvicorn[standard]
+python-dotenv
+Flask
