@@ -5,12 +5,18 @@ Este projeto demonstra uma arquitetura de orquestração de múltiplos agentes (
 ## Arquitetura
 *   **Lead Agent**: Coordena a interação com o usuário e delega tarefas.
 *   **Router**: Um mecanismo (LLMRouterChain) que decide qual agente especializado é mais adequado para a consulta do usuário.
-*   **Agentes Especializados (Tools)**: Agentes focados em tarefas específicas (AgenteA, AgenteB, AgenteC).
+*   **Agentes Especializados (Tools)**:
+    *   **AgentA**: Agora um `AgentExecutor` mais robusto, focado no domínio X. Ele utiliza suas próprias ferramentas internas para processar consultas:
+        *   `BuscaInformacaoDominioX`: Para responder perguntas sobre as características, origem ou componentes de X.
+        *   `CalculadoraTrivial`: Para realizar cálculos de adição simples.
+    *   **AgentB**: Especialista em Y (função simples).
+    *   **AgentC**: Especialista em Z (função simples).
 *   **Memória**:
     *   `user_lead_memory`: Armazena o histórico da conversa entre o usuário e o Lead Agent.
     *   `lead_team_memory`: Armazena o histórico das interações do Lead Agent com os agentes especializados.
 *   **API Flask**: Um servidor web simples para expor a funcionalidade do agente.
 *   **LangSmith**: (Opcional) Para rastreamento, avaliação e debugging.
+*   **n8n Webhook**: (Opcional) Para enviar dados da conversa para fluxos de trabalho externos no n8n.
 
 ## Estrutura de Diretórios
 ```
@@ -18,13 +24,14 @@ Este projeto demonstra uma arquitetura de orquestração de múltiplos agentes (
 ├── app/
 │   ├── agents/             # Módulos dos agentes especializados (agent_a.py, etc.)
 │   │   ├── __init__.py
-│   │   └── agent_a.py
-│   │   └── agent_b.py
+│   │   ├── agent_a.py
+│   │   ├── agent_a_tools.py  # Ferramentas específicas do Agente A
+│   │   ├── agent_b.py
 │   │   └── agent_c.py
 │   ├── __init__.py
 │   ├── main.py             # Lógica principal dos agentes, chains e memórias
 │   ├── server.py           # Servidor Flask API
-│   └── tools.py            # Definição das LangChain Tools para os agentes
+│   └── tools.py            # Definição das LangChain Tools para os agentes (usadas pelo Lead Agent)
 ├── .env                    # Arquivo para variáveis de ambiente (NÃO versionar chaves reais)
 ├── .gitignore
 ├── README.md               # Este arquivo
@@ -67,8 +74,12 @@ Este projeto demonstra uma arquitetura de orquestração de múltiplos agentes (
     LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
     LANGCHAIN_API_KEY="SUA_CHAVE_API_LANGSMITH_AQUI"
     LANGCHAIN_PROJECT="Multi-Agent Orchestration" # Ou o nome do seu projeto no LangSmith
+
+    # n8n Integration (Opcional)
+    # URL do seu webhook no n8n para receber notificações das conversas
+    N8N_WEBHOOK_URL="SUA_URL_WEBHOOK_N8N_AQUI"
     ```
-    **Importante**: Substitua `"SUA_CHAVE_API_OPENAI_AQUI"` e `"SUA_CHAVE_API_LANGSMITH_AQUI"` pelas suas chaves reais.
+    **Importante**: Substitua `"SUA_CHAVE_API_OPENAI_AQUI"`, `"SUA_CHAVE_API_LANGSMITH_AQUI"` e `"SUA_URL_WEBHOOK_N8N_AQUI"` pelas suas chaves/URLs reais.
 
 ## Executando a Aplicação
 Após configurar o `.env`, você pode iniciar o servidor Flask:
@@ -96,7 +107,8 @@ curl -X POST http://localhost:8000/chat \
 **Exemplo de Payload de Entrada (JSON):**
 ```json
 {
-    "user_input": "Qual sua especialidade, Agente B?"
+    "user_input": "Qual sua especialidade, Agente B?",
+    "user_id": "usuario123" // Opcional
 }
 ```
 
@@ -123,6 +135,26 @@ curl http://localhost:8000/memory/lead_team
 
 ## Rastreamento com LangSmith
 Se as variáveis de ambiente do LangSmith (`LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`) estiverem configuradas corretamente no arquivo `.env`, as interações com os agentes serão automaticamente rastreadas e visíveis no seu dashboard do LangSmith. Isso é extremamente útil para depuração e monitoramento do comportamento dos agentes.
+
+## Integração com n8n
+
+O sistema pode ser configurado para enviar detalhes de cada interação bem-sucedida (entrada do usuário e resposta do agente) para um webhook n8n. Isso permite a criação de fluxos de trabalho automatizados e integrações com outros serviços.
+
+Para habilitar, configure a variável `N8N_WEBHOOK_URL` no seu arquivo `.env` com a URL do seu webhook n8n.
+
+O payload enviado para o n8n terá o seguinte formato JSON:
+```json
+{
+  "user": "IdentificadorDoUsuario", // Ex: "Usuário Anônimo via API" ou um ID de usuário fornecido na requisição
+  "message": "A entrada original do usuário.",
+  "response": "A resposta final fornecida pelo agente."
+}
+```
+Com isso, você pode, por exemplo, usar o n8n para:
+*   Registrar todas as conversas em um banco de dados ou Notion.
+*   Enviar notificações para o Slack sobre interações específicas.
+*   Criar ou atualizar leads em um CRM.
+*   Disparar e-mails de acompanhamento.
 
 ---
 
